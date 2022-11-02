@@ -88,3 +88,25 @@ class OPT_CLIPTextTransformer():
 
     def __call__(self, *args, **kwargs):
         return self._run(*args, **kwargs)
+
+
+class ORG_CLIPTextTransformer():
+    def __init__(self):
+        # initialize
+        embed_dim = 768
+        text_cfg = {
+            'layers': 12,
+            'context_length': 77,
+            'vocab_size': 49408,
+            'width': 768,
+            'heads': 12,
+        }
+        quick_gelu = False
+        self._model = CLIPTextTransformer(
+            embed_dim=embed_dim,
+            text_cfg=text_cfg,
+            quick_gelu=quick_gelu
+        )
+
+    def __call__(self, text):
+        return self._model(text)
