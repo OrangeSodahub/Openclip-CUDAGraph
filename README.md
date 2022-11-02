@@ -3,6 +3,7 @@ Tips: There are three steps from the original model to final callable optimized 
 1. Trace the torch model through `torch.fx._symbolic_trace` to generate `torch.fx.GraphModuel` object.
 2. Replace some modules in this object to optimize it **(not included in this version)** and output is a `torch.fx.GraphModuel` object.
 3. Build static graph model through `torch.cuda.CUDAGraph`.
+And also not use `torchdynamo.optimize()`.
 
 ### Benchmark
 Run and output (1000 inputs to textclip model):
