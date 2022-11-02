@@ -4,7 +4,7 @@ import torch
 import logging
 import numpy as np
 
-from modeling.openclip import OpenCLIPModel_opt
+from openclip_model import OpenCLIPModel_opt
 
 
 @click.command()
@@ -15,9 +15,9 @@ def benchmark(batch_size):
     torch.manual_seed(4896)
 
     # Load Model
-    openclip = OpenCLIPModel_opt(name='ViT-L-14::laion2b-s32b-b82k', device='cuda')
-    start = time.perf_counter()
     input = torch.randint(0, 10, (1, 77), dtype=torch.int64).long().cuda()
+    openclip = OpenCLIPModel_opt(name='ViT-L-14::laion2b-s32b-b82k', device='cuda', example_inputs=input)
+    start = time.perf_counter()
     with torch.inference_mode(), torch.cuda.amp.autocast(enabled=True, dtype=torch.float16, cache_enabled=True):
         # TODO: Modified model.forward()
         _ = openclip._model_opt(input)

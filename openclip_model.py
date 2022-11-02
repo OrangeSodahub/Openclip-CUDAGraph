@@ -5,11 +5,11 @@
 # John Miller, Hongseok Namkoong, Hannaneh Hajishirzi, Ali Farhadi,
 # Ludwig Schmidt
 
-from clip_server.model.clip_model import CLIPModel
 from clip_server.model.pretrained_models import get_model_url_md5, download_model
 from clip_server.model.model import load_openai_model, load_openclip_model
 
-from kernl.model_optimization import optimize_model
+from model_optimization import optimize_model
+from modeling.openclip import CLIPTextTransformer
 
 import torch
 
@@ -54,10 +54,10 @@ class OpenCLIPModel(CLIPModel):
 
 
 class OpenCLIPModel_opt(OpenCLIPModel):
-    def __init__(self, name: str, device: str = 'cpu', jit: bool = False, **kwargs):
+    def __init__(self, name: str, device: str = 'cpu', jit: bool = False, example_inputs = None, **kwargs):
         super().__init__(name, device, jit, **kwargs)
         self._model = self._model.eval().cuda()
         print(f"Load Model: {type(self._model)}")
         
-        self._model_opt = optimize_model(self._model)
+        self._model_opt = optimize_model(original_model=self._model, example_inputs=example_inputs)
         print(f"Load Model: {type(self._model_opt)}")

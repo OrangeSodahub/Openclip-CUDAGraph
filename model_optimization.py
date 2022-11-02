@@ -3,11 +3,13 @@ from typing import Callable, List
 import torch
 import torchdynamo
 
+from modeling.openclip import CLIPTextTransformer
 from kernl.implementations.cuda_graph import cuda_graphs_wrapper
 from kernl.optimizer.dynamo_backend import dynamo_backend_ofi
+from torch.fx._symbolic_trace import symbolic_trace
 
 
-def optimize_model(original_model, pool = torch.cuda.graph_pool_handle()) -> Callable:
+def optimize_model(original_model: CLIPTextTransformer, example_inputs: List[torch.Tensor], pool = torch.cuda.graph_pool_handle()) -> Callable:
     """
     Optimizes a given model. Optimization is done in two steps:
     *  first step is to convert the given model to fx graph.
@@ -15,28 +17,20 @@ def optimize_model(original_model, pool = torch.cuda.graph_pool_handle()) -> Cal
 
     @return: returns the optimized model (and the original model is modified, so it can not be used after optimization).
 
-        Example:
-            from kernl.model_optimization import optimize_model
-
-            model_name = "BaptisteDoyen/camembert-base-xnli"
-            model = AutoModelForSequenceClassification.from_pretrained(model_name)
-            model = model.eval().cuda()
-2
-            optimized_model = optimize_model(model)
     """
-    original_model.forward2 = original_model.forward
-
-    def compiler(gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]):
+    def compiler(model: CLIPTextTransformer, example_inputs: List[torch.Tensor]):
+        # Generate gm
+        gm: torch.fx.GraphModuel = symbolic_trace(model)
+        print("Called with FX Graph:")
+        gm.graph.print_tabular()
+        # Optimize model
         dynamo_backend_ofi(gm)
+        # Build CUDAGraph and return callable `run`
         return cuda_graphs_wrapper(gm, example_inputs, pool=pool)
 
+    forward = compiler(original_model, example_inputs)
+
     def run(*args, **kwargs):
-        with torchdynamo.optimize(compiler):
-            return original_model.forward2(*args, **kwargs)
-
-    def forward_with_exception(*args, **kwargs):
-        raise Exception("Original model can not be used after optimization")
-
-    original_model.forward = forward_with_exception
+        return forward(*args, **kwargs)
 
     return run
