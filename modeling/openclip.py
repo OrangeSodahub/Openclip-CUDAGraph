@@ -1,63 +1,325 @@
-# Originally from https://github.com/mlfoundations/open_clip.
-#
-# Copyright (c) 2012-2021 Gabriel Ilharco, Mitchell Wortsman,
-# Nicholas Carlini, Rohan Taori, Achal Dave, Vaishaal Shankar,
-# John Miller, Hongseok Namkoong, Hannaneh Hajishirzi, Ali Farhadi,
-# Ludwig Schmidt
+""" CLIP Model
 
-from clip_server.model.clip_model import CLIPModel
-from clip_server.model.pretrained_models import get_model_url_md5, download_model
-from clip_server.model.model import load_openai_model, load_openclip_model
+Adapted from https://github.com/mlfoundations/open_clip.
 
-from kernl.model_optimization import optimize_model
+Originally MIT License, Copyright (c) 2012-2021 Gabriel Ilharco, Mitchell Wortsman,
+Nicholas Carlini, Rohan Taori, Achal Dave, Vaishaal Shankar,
+John Miller, Hongseok Namkoong, Hannaneh Hajishirzi, Ali Farhadi,
+Ludwig Schmidt
+"""
+
+import numpy as np
+import collections.abc
+from collections import OrderedDict
+from typing import Tuple, Union, Callable, Optional
+from itertools import repeat
 
 import torch
+from torch import nn
+import torch.nn.functional as F
+from torch.utils.checkpoint import checkpoint
+from dataclasses import dataclass
 
 
-class OpenCLIPModel(CLIPModel):
-    def __init__(self, name: str, device: str = 'cpu', jit: bool = False, **kwargs):
-        super().__init__(name, **kwargs)
+@dataclass
+class CLIPVisionCfg:
+    layers: Union[Tuple[int, int, int, int], int] = 12
+    width: int = 768
+    head_width: int = 64
+    mlp_ratio: float = 4.0
+    patch_size: int = 16
+    image_size: Union[Tuple[int, int], int] = 224
+    timm_model_name: str = (
+        None  # a valid model name overrides layers, width, patch_size
+    )
+    timm_model_pretrained: bool = (
+        False  # use (imagenet) pretrained weights for named model
+    )
+    timm_pool: str = (
+        'avg'  # feature pooling for timm model ('abs_attn', 'rot_attn', 'avg', '')
+    )
+    timm_proj: str = (
+        'linear'  # linear projection for timm model output ('linear', 'mlp', '')
+    )
 
-        if '::' in name:
-            model_name, pretrained = name.split('::')
-        else:
-            model_name = name
-            pretrained = 'openai'
 
-        self._model_name = model_name
+@dataclass
+class CLIPTextCfg:
+    context_length: int = 77
+    vocab_size: int = 49408
+    width: int = 512
+    heads: int = 8
+    layers: int = 12
 
-        model_url, md5sum = get_model_url_md5(name)
-        model_path = download_model(model_url, md5sum=md5sum)
 
-        if pretrained == 'openai':
-            self._model = load_openai_model(model_path, device=device, jit=jit)
-        else:
-            self._model = load_openclip_model(
-                self._model_name, model_path=model_path, device=device, jit=jit
+# From PyTorch internals
+def _ntuple(n):
+    def parse(x):
+        if isinstance(x, collections.abc.Iterable):
+            return x
+        return tuple(repeat(x, n))
+
+    return parse
+
+
+to_2tuple = _ntuple(2)
+
+
+class LayerNorm(nn.LayerNorm):
+    """Subclass torch's LayerNorm to handle fp16."""
+
+    def forward(self, x: torch.Tensor):
+        orig_type = x.dtype
+        x = F.layer_norm(
+            x.type(torch.float32),
+            self.normalized_shape,
+            self.weight,
+            self.bias,
+            self.eps,
+        )
+        return x.to(orig_type)
+
+
+class QuickGELUActivation(nn.Module):
+    # NOTE This is slower than nn.GELU or nn.SiLU and uses more GPU memory
+    def forward(self, x: torch.Tensor):
+        return x * torch.sigmoid(1.702 * x)
+
+
+class ResidualAttentionBlock(nn.Module):
+    def __init__(
+        self,
+        d_model: int,
+        n_head: int,
+        mlp_ratio: float = 4.0,
+        act_layer: Callable = nn.GELU,
+        scale_cosine_attn: bool = False,
+        scale_heads: bool = False,
+        scale_attn: bool = False,
+        scale_fc: bool = False,
+    ):
+        super().__init__()
+
+        self.ln_1 = LayerNorm(d_model)
+        self.attn = nn.MultiheadAttention(d_model, n_head)
+        self.ln_attn = LayerNorm(d_model) if scale_attn else nn.Identity()
+
+        self.ln_2 = LayerNorm(d_model)
+        mlp_width = int(d_model * mlp_ratio)
+        self.mlp = nn.Sequential(
+            OrderedDict(
+                [
+                    ("c_fc", nn.Linear(d_model, mlp_width)),
+                    ('ln', LayerNorm(mlp_width) if scale_fc else nn.Identity()),
+                    ("gelu", act_layer()),
+                    ("c_proj", nn.Linear(mlp_width, d_model)),
+                ]
             )
+        )
 
-    @staticmethod
-    def get_model_name(name: str):
-        if '::' in name:
-            model_name, pretrained = name.split('::')
-        else:
-            model_name = name
-        if model_name == 'ViT-L/14@336px':
-            return 'ViT-L-14-336'
-        return model_name.replace('/', '-')
+    def attention(self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None):
+        return self.attn(x, x, x, need_weights=False, attn_mask=attn_mask)[0]
 
-    def encode_text(self, input_ids: 'torch.Tensor', **kwargs):
-        return self._model.encode_text(input_ids)
-
-    def encode_image(self, pixel_values: 'torch.Tensor', **kwargs):
-        return self._model.encode_image(pixel_values)
+    def forward(self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None):
+        # TODO: to() received an invalid combination of arguments - got (Attribute, Attribute), but expected one of:
+        # if attn_mask is not None:
+        #     attn_mask = attn_mask.to(x.device, x.dtype)
+        x = x + self.ln_attn(self.attention(self.ln_1(x), attn_mask=attn_mask))
+        x = x + self.mlp(self.ln_2(x))
+        return x
 
 
-class OpenCLIPModel_opt(OpenCLIPModel):
-    def __init__(self, name: str, device: str = 'cpu', jit: bool = False, **kwargs):
-        super().__init__(name, device, jit, **kwargs)
-        self._model = self._model.eval().cuda()
-        print(f"Load Model: {type(self._model)}")
-        
-        self._model_opt = optimize_model(self._model)
-        print(f"Load Model: {type(self._model_opt)}")
+class Transformer(nn.Module):
+    def __init__(
+        self,
+        width: int,
+        layers: int,
+        heads: int,
+        mlp_ratio: float = 4.0,
+        act_layer: Callable = nn.GELU,
+    ):
+        super().__init__()
+        self.width = width
+        self.layers = layers
+        self.grad_checkpointing = False
+
+        self.resblocks = nn.ModuleList(
+            [
+                ResidualAttentionBlock(width, heads, mlp_ratio, act_layer=act_layer)
+                for _ in range(layers)
+            ]
+        )
+
+    def forward(self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None):
+        for r in self.resblocks:
+            if self.grad_checkpointing and not torch.jit.is_scripting():
+                x = checkpoint(r, x, attn_mask)
+            else:
+                x = r(x, attn_mask=attn_mask)
+        return x
+
+
+class VisualTransformer(nn.Module):
+    def __init__(
+        self,
+        image_size: int,
+        patch_size: int,
+        width: int,
+        layers: int,
+        heads: int,
+        mlp_ratio: float,
+        output_dim: int,
+        act_layer: Callable = nn.GELU,
+    ):
+        super().__init__()
+        self.image_size = to_2tuple(image_size)
+        self.patch_size = to_2tuple(patch_size)
+        self.grid_size = (
+            self.image_size[0] // self.patch_size[0],
+            self.image_size[1] // self.patch_size[1],
+        )
+        self.output_dim = output_dim
+        self.conv1 = nn.Conv2d(
+            in_channels=3,
+            out_channels=width,
+            kernel_size=patch_size,
+            stride=patch_size,
+            bias=False,
+        )
+
+        scale = width**-0.5
+        self.class_embedding = nn.Parameter(scale * torch.randn(width))
+        self.positional_embedding = nn.Parameter(
+            scale * torch.randn(self.grid_size[0] * self.grid_size[1] + 1, width)
+        )
+        self.ln_pre = LayerNorm(width)
+
+        self.transformer = Transformer(
+            width, layers, heads, mlp_ratio, act_layer=act_layer
+        )
+
+        self.ln_post = LayerNorm(width)
+        self.proj = nn.Parameter(scale * torch.randn(width, output_dim))
+
+    def lock(self, unlocked_groups=0, freeze_bn_stats=False):
+        assert (
+            unlocked_groups == 0
+        ), 'partial locking not currently supported for this model'
+        for param in self.parameters():
+            param.requires_grad = False
+
+    @torch.jit.ignore
+    def set_grad_checkpointing(self, enable=True):
+        self.transformer.grad_checkpointing = enable
+
+    def forward(self, x: torch.Tensor):
+        x = self.conv1(x)  # shape = [*, width, grid, grid]
+        x = x.reshape(x.shape[0], x.shape[1], -1)  # shape = [*, width, grid ** 2]
+        x = x.permute(0, 2, 1)  # shape = [*, grid ** 2, width]
+        x = torch.cat(
+            [
+                self.class_embedding.to(x.dtype)
+                + torch.zeros(
+                    x.shape[0], 1, x.shape[-1], dtype=x.dtype, device=x.device
+                ),
+                x,
+            ],
+            dim=1,
+        )  # shape = [*, grid ** 2 + 1, width]
+        x = x + self.positional_embedding.to(x.dtype)
+        x = self.ln_pre(x)
+
+        x = x.permute(1, 0, 2)  # NLD -> LND
+        x = self.transformer(x)
+        x = x.permute(1, 0, 2)  # LND -> NLD
+
+        x = self.ln_post(x[:, 0, :])
+
+        if self.proj is not None:
+            x = x @ self.proj
+
+        return x
+
+
+class CLIPTextTransformer(nn.Module):
+    def __init__(
+            self,
+            embed_dim: int,
+            text_cfg: CLIPTextCfg,
+            quick_gelu: bool = False,
+    ):
+        super().__init__()
+        if isinstance(text_cfg, dict):
+            text_cfg = CLIPTextCfg(**text_cfg)
+
+        self.context_length = text_cfg.context_length
+        act_layer = QuickGELUActivation if quick_gelu else nn.GELU
+
+        # General Transformer
+        self.transformer = Transformer(
+            width=text_cfg.width,
+            layers=text_cfg.layers,
+            heads=text_cfg.heads,
+            act_layer=act_layer,
+        )
+
+        self.vocab_size = text_cfg.vocab_size
+        self.token_embedding = nn.Embedding(text_cfg.vocab_size, text_cfg.width)
+        self.positional_embedding = nn.Parameter(torch.empty(self.context_length, text_cfg.width))
+        self.ln_final = LayerNorm(text_cfg.width)
+
+        self.text_projection = nn.Parameter(torch.empty(text_cfg.width, embed_dim))
+        self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+        self.register_buffer('attn_mask', self.build_attention_mask(), persistent=False)
+
+        self.init_parameters()
+
+    def init_parameters(self):
+        nn.init.normal_(self.token_embedding.weight, std=0.02)
+        nn.init.normal_(self.positional_embedding, std=0.01)
+        nn.init.constant_(self.logit_scale, np.log(1 / 0.07))
+
+        proj_std = (self.transformer.width**-0.5) * (
+            (2 * self.transformer.layers) ** -0.5
+        )
+        attn_std = self.transformer.width**-0.5
+        fc_std = (2 * self.transformer.width) ** -0.5
+        for block in self.transformer.resblocks:
+            nn.init.normal_(block.attn.in_proj_weight, std=attn_std)
+            nn.init.normal_(block.attn.out_proj.weight, std=proj_std)
+            nn.init.normal_(block.mlp.c_fc.weight, std=fc_std)
+            nn.init.normal_(block.mlp.c_proj.weight, std=proj_std)
+
+        if self.text_projection is not None:
+            nn.init.normal_(self.text_projection, std=self.transformer.width**-0.5)
+
+    def build_attention_mask(self):
+        # lazily create causal attention mask, with full attention between the vision tokens
+        # pytorch uses additive attention mask; fill with -inf
+        mask = torch.empty(self.context_length, self.context_length)
+        mask.fill_(float("-inf"))
+        mask.triu_(1)  # zero out the lower diagonal
+        return mask
+
+    @torch.jit.ignore
+    def set_grad_checkpointing(self, enable=True):
+        self.transformer.grad_checkpointing = enable
+
+    def encode_text(self, text):
+        x = self.token_embedding(text)  # [batch_size, n_ctx, d_model]
+
+        x = x + self.positional_embedding
+        x = x.permute(1, 0, 2)  # NLD -> LND
+        x = self.transformer(x, attn_mask=self.attn_mask)
+        x = x.permute(1, 0, 2)  # LND -> NLD
+        x = self.ln_final(x)
+
+        # x.shape = [batch_size, n_ctx, transformer.width]
+        # take features from the eot embedding (eot_token is the highest number in each sequence)
+        # TODO: end must be a number
+        # x = x[torch.arange(x.shape[0]), text.argmax(dim=-1)] @ self.text_projection
+
+        return x
+
+    def forward(self, text):
+        return self.encode_text(text)
