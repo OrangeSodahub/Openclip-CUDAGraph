@@ -18,13 +18,15 @@ def optimize_model(original_model: CLIPTextTransformer, example_inputs: List[tor
     @return: returns the optimized model (and the original model is modified, so it can not be used after optimization).
 
     """
+    if not isinstance(example_inputs, (list, tuple)):
+        example_inputs = (example_inputs,)
     def compiler(model: CLIPTextTransformer, example_inputs: List[torch.Tensor]):
         # Generate gm
         gm: torch.fx.GraphModuel = symbolic_trace(model)
         print("Called with FX Graph:")
         gm.graph.print_tabular()
         # Optimize model
-        dynamo_backend_ofi(gm)
+        # dynamo_backend_ofi(gm)
         # Build CUDAGraph and return callable `run`
         return cuda_graphs_wrapper(gm, example_inputs, pool=pool)
 

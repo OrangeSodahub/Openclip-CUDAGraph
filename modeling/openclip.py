@@ -16,7 +16,7 @@ import torch.nn.functional as F
 from torch import nn
 from torch.utils.checkpoint import checkpoint
 
-from module import (_ntuple, ResidualAttentionBlock, LayerNorm,
+from modeling.module import (_ntuple, ResidualAttentionBlock, LayerNorm,
                     QuickGELUActivation, CLIPTextCfg, CLIPVisionCfg,
                     ModifiedResNet)
 
