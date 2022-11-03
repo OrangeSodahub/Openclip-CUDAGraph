@@ -66,8 +66,10 @@ class VisualTransformer(nn.Module):
         mlp_ratio: float,
         output_dim: int,
         act_layer: Callable = nn.GELU,
+        batch_size: int = 1,
     ):
         super().__init__()
+        self.batch_size = batch_size
         self.image_size = to_2tuple(image_size)
         self.patch_size = to_2tuple(patch_size)
         self.grid_size = (
@@ -112,16 +114,10 @@ class VisualTransformer(nn.Module):
         x = self.conv1(x)  # shape = [*, width, grid, grid]
         x = x.reshape(x.shape[0], x.shape[1], -1)  # shape = [*, width, grid ** 2]
         x = x.permute(0, 2, 1)  # shape = [*, grid ** 2, width]
-        x = torch.cat(
-            [
-                self.class_embedding.to(x.dtype)
-                + torch.zeros(
-                    x.shape[0], 1, x.shape[-1], dtype=x.dtype, device=x.device
-                ),
-                x,
-            ],
-            dim=1,
-        )  # shape = [*, grid ** 2 + 1, width]
+
+        class_embedding = self.class_embedding.unsqueeze(0).unsqueeze(0)
+        class_embedding = torch.concat([class_embedding for _ in range(self.batch_size)], dim=0)
+        x = torch.cat([class_embedding, x], dim=1)
         x = x + self.positional_embedding.to(x.dtype)
         x = self.ln_pre(x)
 
@@ -137,17 +133,55 @@ class VisualTransformer(nn.Module):
         return x
 
 
+class CLIPVisionTransformer(nn.Module):
+    def __init__(
+        self,
+        embed_dim: int,
+        vision_cfg: CLIPVisionCfg,
+        quick_gelu: bool = False,
+        batch_size: int = 1,
+    ):
+        super().__init__()
+        if isinstance(vision_cfg, dict):
+            vision_cfg = CLIPVisionCfg(**vision_cfg)
+
+        act_layer = QuickGELUActivation if quick_gelu else nn.GELU
+
+        # Vision Transformer
+        # layers name: visual....
+        vision_heads = vision_cfg.width // vision_cfg.head_width
+        self.visual = VisualTransformer(
+            image_size=vision_cfg.image_size,
+            patch_size=vision_cfg.patch_size,
+            width=vision_cfg.width,
+            layers=vision_cfg.layers,
+            heads=vision_heads,
+            mlp_ratio=vision_cfg.mlp_ratio,
+            output_dim=embed_dim,
+            act_layer=act_layer,
+            batch_size=batch_size,
+        )
+
+    def encode_image(self, image):
+        return self.visual(image)
+
+    def forward(self, image):
+        return self.encode_image(image)
+
+
 class CLIPTextTransformer(nn.Module):
     def __init__(
-            self,
-            embed_dim: int,
-            text_cfg: CLIPTextCfg,
-            quick_gelu: bool = False,
+        self,
+        embed_dim: int,
+        text_cfg: CLIPTextCfg,
+        quick_gelu: bool = False,
+        batch_size: int = 1,
     ):
         super().__init__()
         if isinstance(text_cfg, dict):
             text_cfg = CLIPTextCfg(**text_cfg)
 
+        self.batch_size = batch_size
         self.context_length = text_cfg.context_length
         act_layer = QuickGELUActivation if quick_gelu else nn.GELU
 
@@ -212,8 +246,7 @@ class CLIPTextTransformer(nn.Module):
 
         # x.shape = [batch_size, n_ctx, transformer.width]
         # take features from the eot embedding (eot_token is the highest number in each sequence)
-        # TODO: end must be a number
-        # x = x[torch.arange(x.shape[0]), text.argmax(dim=-1)] @ self.text_projection
+        x = x[torch.arange(self.batch_size), text.argmax(dim=-1)] @ self.text_projection
 
         return x
 
@@ -222,6 +255,7 @@ class CLIPTextTransformer(nn.Module):
 
 
 """ CLIP Model """
+# Not use TimmModel
 from open_clip.timm_model import TimmModel
 from open_clip.factory import _MODEL_CONFIGS
 
@@ -280,6 +314,7 @@ class CLIP(nn.Module):
                 act_layer=act_layer,
             )
 
+        # TextTransformer
         self.transformer = Transformer(
             width=text_cfg.width,
             layers=text_cfg.layers,
@@ -359,19 +394,29 @@ class CLIP(nn.Module):
 
         # x.shape = [batch_size, n_ctx, transformer.width]
         # take features from the eot embedding (eot_token is the highest number in each sequence)
-        x = x[torch.arange(x.shape[0]), text.argmax(dim=-1)] @ self.text_projection
+        # TODO: end must be a number
+        # x = x[torch.arange(x.shape[0]), text.argmax(dim=-1)] @ self.text_projection
 
         return x
 
-    def forward(self, image, text):
-        if image is None:
-            return self.encode_text(text)
-        elif text is None:
-            return self.encode_image(image)
-        image_features = self.encode_image(image)
-        image_features = F.normalize(image_features, dim=-1)
+    # def forward(self, image, text):
+    #     if image is None:
+    #         return self.encode_text(text)
+    #     elif text is None:
+    #         return self.encode_image(image)
+    #     image_features = self.encode_image(image)
+    #     image_features = F.normalize(image_features, dim=-1)
 
-        text_features = self.encode_text(text)
-        text_features = F.normalize(text_features, dim=-1)
+    #     text_features = self.encode_text(text)
+    #     text_features = F.normalize(text_features, dim=-1)
 
-        return image_features, text_features, self.logit_scale.exp()
+    #     return image_features, text_features, self.logit_scale.exp()
+    def forward(self, image = None, text = None):
+        image_features = None
+        text_features = None
+        if image is not None:
+            image_features = self.encode_image(image)
+        if text is not None:
+            text_features = self.encode_text(text)
+
+        return image_features, text_features

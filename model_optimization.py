@@ -3,7 +3,7 @@ from typing import Callable, List
 import torch
 import torchdynamo
 
-from modeling.openclip import CLIPTextTransformer
+from modeling.openclip import CLIP, CLIPTextTransformer
 from kernl.implementations.cuda_graph import cuda_graphs_wrapper
 from kernl.optimizer.dynamo_backend import dynamo_backend_ofi
 from torch.fx._symbolic_trace import symbolic_trace

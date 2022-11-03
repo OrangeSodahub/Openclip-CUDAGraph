@@ -18,18 +18,6 @@ class CLIPVisionCfg:
     mlp_ratio: float = 4.0
     patch_size: int = 16
     image_size: Union[Tuple[int, int], int] = 224
-    timm_model_name: str = (
-        None  # a valid model name overrides layers, width, patch_size
-    )
-    timm_model_pretrained: bool = (
-        False  # use (imagenet) pretrained weights for named model
-    )
-    timm_pool: str = (
-        'avg'  # feature pooling for timm model ('abs_attn', 'rot_attn', 'avg', '')
-    )
-    timm_proj: str = (
-        'linear'  # linear projection for timm model output ('linear', 'mlp', '')
-    )
 
 
 @dataclass
