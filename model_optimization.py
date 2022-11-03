@@ -1,15 +1,17 @@
-from typing import Callable, List
-
 import torch
-import torchdynamo
+from typing import Callable, Union, List
 
-from modeling.openclip import CLIP, CLIPTextTransformer
+from modeling.openclip import CLIPTextTransformer, CLIPVisionTransformer
 from kernl.implementations.cuda_graph import cuda_graphs_wrapper
 from kernl.optimizer.dynamo_backend import dynamo_backend_ofi
 from torch.fx._symbolic_trace import symbolic_trace
 
 
-def optimize_model(original_model: CLIPTextTransformer, example_inputs: List[torch.Tensor], pool = torch.cuda.graph_pool_handle()) -> Callable:
+def optimize_model(
+        original_model: Union[CLIPTextTransformer, CLIPVisionTransformer],
+        example_inputs: List[torch.Tensor],
+        pool = torch.cuda.graph_pool_handle()
+    ) -> Callable:
     """
     Optimizes a given model. Optimization is done in two steps:
     *  first step is to convert the given model to fx graph.
@@ -20,13 +22,9 @@ def optimize_model(original_model: CLIPTextTransformer, example_inputs: List[tor
     """
     if not isinstance(example_inputs, (list, tuple)):
         example_inputs = (example_inputs,)
-    def compiler(model: CLIPTextTransformer, example_inputs: List[torch.Tensor]):
+    def compiler(model: Union[CLIPTextTransformer, CLIPVisionTransformer], example_inputs: List[torch.Tensor]):
         # Generate gm
         gm: torch.fx.GraphModuel = symbolic_trace(model)
-        print("Called with FX Graph:")
-        gm.graph.print_tabular()
-        # Optimize model
-        # dynamo_backend_ofi(gm)
         # Build CUDAGraph and return callable `run`
         return cuda_graphs_wrapper(gm, example_inputs, pool=pool)
 

@@ -300,9 +300,8 @@ class ResidualAttentionBlock(nn.Module):
         return self.attn(x, x, x, need_weights=False, attn_mask=attn_mask)[0]
 
     def forward(self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None):
-        # TODO: to() received an invalid combination of arguments - got (Attribute, Attribute), but expected one of:
-        # if attn_mask is not None:
-        #     attn_mask = attn_mask.to(x.device, x.dtype)
+        if attn_mask is not None:
+            attn_mask = attn_mask.to(x.dtype)
         x = x + self.ln_attn(self.attention(self.ln_1(x), attn_mask=attn_mask))
         x = x + self.mlp(self.ln_2(x))
         return x

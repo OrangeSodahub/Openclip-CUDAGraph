@@ -1,4 +1,3 @@
-import click
 import time
 import torch
 import logging
@@ -7,15 +6,15 @@ import numpy as np
 from openclip_model import (ORG_CLIPTextTransformer, OPT_CLIPTextTransformer,
                             ORG_CLIPVisionTransformer, OPT_CLIPVisionTransformer)
 
-N = 1000
-B = 1
+N = 1000    # times
+B = 1       # batch_size
 
 def benchmark(mode):
     logging.getLogger().setLevel(logging.INFO)
     np.random.seed(0)
     torch.manual_seed(4896)
 
-    # Load Model
+    # Load Model: mock input
     if mode == 'text':
         example_input = torch.randint(0, 10, (B, 77)).long()
         opt_model = OPT_CLIPTextTransformer(example_input, B)
