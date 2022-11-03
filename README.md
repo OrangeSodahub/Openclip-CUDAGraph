@@ -8,11 +8,10 @@ And also not use `torchdynamo.optimize()`.
 ### Benchmark
 textclip model (1000 * shape=(1, 77)):
 ```
-complete_time_baseline=52.18s
-complete_time_optimized=0.14s
+complete_time_baseline=6.39887s
+complete_time_optimized=2.46688s
 ```
 visionclip model (1000 * shape=(1, 3, 224, 224)):
 ```
-complete_time_baseline=510.20s
-complete_time_optimized=0.34s
+TBD...
 ```

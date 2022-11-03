@@ -1,10 +1,3 @@
-# Originally from https://github.com/mlfoundations/open_clip.
-#
-# Copyright (c) 2012-2021 Gabriel Ilharco, Mitchell Wortsman,
-# Nicholas Carlini, Rohan Taori, Achal Dave, Vaishaal Shankar,
-# John Miller, Hongseok Namkoong, Hannaneh Hajishirzi, Ali Farhadi,
-# Ludwig Schmidt
-
 from modeling.clip_model import CLIPModel
 from model_optimization import optimize_model
 from modeling.model import CLIPTextTransformer, CLIPVisionTransformer
