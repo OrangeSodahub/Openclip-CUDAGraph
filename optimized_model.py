@@ -5,8 +5,9 @@
 # John Miller, Hongseok Namkoong, Hannaneh Hajishirzi, Ali Farhadi,
 # Ludwig Schmidt
 
+from modeling.clip_model import CLIPModel
 from model_optimization import optimize_model
-from modeling.openclip import CLIPTextTransformer, CLIPVisionTransformer
+from modeling.model import CLIPTextTransformer, CLIPVisionTransformer
 
 
 # TODO: `batch_size`
@@ -81,3 +82,26 @@ class OPT_CLIPVisionTransformer(ORG_CLIPVisionTransformer):
 
     def __call__(self, *args, **kwargs):
         return self._run(*args, **kwargs)
+
+
+class OPT_CLIPModel():
+    def __init__(self, name: str, device: str = 'cpu', jit: bool = False,
+                 example_inputs_text = None, example_inputs_image = None, **kwargs):
+        assert example_inputs_text is not None or example_inputs_image is not None
+        
+        self._model = CLIPModel(name, device, jit)
+
+        self._encode_text = optimize_model(
+            original_model=self._model._model_text,
+            example_inputs=example_inputs_text,
+        )
+        self._encode_image = optimize_model(
+            original_model=self._model._model_vision,
+            example_inputs=example_inputs_image,
+        )
+
+    def encode_text(self, text):
+        return self._encode_text(text)
+
+    def encode_image(self, image):
+        return self._encode_image(image)

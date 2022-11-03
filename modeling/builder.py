@@ -3,9 +3,11 @@ from torch import nn
 from typing import Union
 import warnings
 from copy import deepcopy
-from open_clip.factory import _MODEL_CONFIGS
+from collections import OrderedDict
 
-from openclip import (CLIP, CLIPTextCfg, CLIPVisionCfg)
+from open_clip.factory import _MODEL_CONFIGS
+from modeling.model import (CLIP, CLIPTextCfg, CLIPVisionCfg,
+                      CLIPTextTransformer, CLIPVisionTransformer)
 
 
 def convert_weights_to_fp16(model: nn.Module):
@@ -288,3 +290,75 @@ def load_openclip_model(
         model = torch.jit.script(model)
 
     return model
+
+
+""" Seperately load model """
+
+def load_openclip_model_seperately(
+    model_name: str,
+    model_path: str,
+    device: torch.device = torch.device('cpu'),
+    jit: bool = False,
+    force_quick_gelu: bool = False,
+    pretrained_image: bool = False,
+    batch_size: int = 1,
+):
+    model_name = model_name.replace(
+        '/', '-'
+    )  # for callers using old naming with / in ViT names
+
+    if model_name in _MODEL_CONFIGS:
+        model_cfg = deepcopy(_MODEL_CONFIGS[model_name])
+    else:
+        raise RuntimeError(f'Model config for {model_name} not found.')
+
+    if force_quick_gelu:
+        # override for use of QuickGELU on non-OpenAI transformer models
+        model_cfg["quick_gelu"] = True
+
+    if pretrained_image:
+        if 'timm_model_name' in model_cfg.get('vision_cfg', {}):
+            # pretrained weight loading for timm models set via vision_cfg
+            model_cfg['vision_cfg']['timm_model_pretrained'] = True
+        else:
+            assert (
+                False
+            ), 'pretrained image towers currently only supported for timm models'
+
+    # begin building model
+    embed_dim = model_cfg['embed_dim']
+    text_cfg = model_cfg['text_cfg']
+    vision_cfg = model_cfg['vision_cfg']
+    quick_gelu = model_cfg.get('quick_gelu', False)
+
+    text_model = CLIPTextTransformer(embed_dim, text_cfg, quick_gelu, batch_size)
+    vision_model = CLIPVisionTransformer(embed_dim, vision_cfg, quick_gelu, batch_size)
+
+    text_model.eval()
+    vision_model.eval()
+
+    # load params
+    state_dict = load_state_dict(model_path)
+    text_state_dict = OrderedDict()
+    vision_state_dict = OrderedDict()
+    for k, v in state_dict.items():
+        if k.startswith('visual'):
+            vision_state_dict[k] = v
+        else:
+            text_state_dict[k] = v
+
+    text_model.load_state_dict(text_state_dict)
+    vision_model.load_state_dict(vision_state_dict)
+
+    if str(device).startswith('cuda'):
+        convert_weights_to_fp16(text_model)
+        convert_weights_to_fp16(vision_model)
+
+    text_model.to(device=device)
+    vision_model.to(device=device)
+
+    if jit:
+        text_model = torch.jit.script(text_model)
+        vision_model = torch.jit.script(vision_model)
+
+    return text_model, vision_model

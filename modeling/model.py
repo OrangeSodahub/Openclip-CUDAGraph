@@ -21,7 +21,6 @@ from modeling.module import (_ntuple, ResidualAttentionBlock, LayerNorm,
                     ModifiedResNet)
 
 
-
 to_2tuple = _ntuple(2)
 
 
@@ -254,7 +253,7 @@ class CLIPTextTransformer(nn.Module):
         return self.encode_text(text)
 
 
-""" CLIP Model """
+""" CLIP Model (not available) """
 # Not use TimmModel
 from open_clip.timm_model import TimmModel
 from open_clip.factory import _MODEL_CONFIGS
@@ -399,24 +398,15 @@ class CLIP(nn.Module):
 
         return x
 
-    # def forward(self, image, text):
-    #     if image is None:
-    #         return self.encode_text(text)
-    #     elif text is None:
-    #         return self.encode_image(image)
-    #     image_features = self.encode_image(image)
-    #     image_features = F.normalize(image_features, dim=-1)
+    def forward(self, image, text):
+        if image is None:
+            return self.encode_text(text)
+        elif text is None:
+            return self.encode_image(image)
+        image_features = self.encode_image(image)
+        image_features = F.normalize(image_features, dim=-1)
 
-    #     text_features = self.encode_text(text)
-    #     text_features = F.normalize(text_features, dim=-1)
+        text_features = self.encode_text(text)
+        text_features = F.normalize(text_features, dim=-1)
 
-    #     return image_features, text_features, self.logit_scale.exp()
-    def forward(self, image = None, text = None):
-        image_features = None
-        text_features = None
-        if image is not None:
-            image_features = self.encode_image(image)
-        if text is not None:
-            text_features = self.encode_text(text)
-
-        return image_features, text_features
+        return image_features, text_features, self.logit_scale.exp()

@@ -1,7 +1,7 @@
 import torch
 from typing import Callable, Union, List
 
-from modeling.openclip import CLIPTextTransformer, CLIPVisionTransformer
+from modeling.model import CLIPTextTransformer, CLIPVisionTransformer
 from kernl.implementations.cuda_graph import cuda_graphs_wrapper
 from kernl.optimizer.dynamo_backend import dynamo_backend_ofi
 from torch.fx._symbolic_trace import symbolic_trace
