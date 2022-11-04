@@ -21,9 +21,10 @@ def optimize_model(
     """
     if not isinstance(example_inputs, (list, tuple)):
         example_inputs = (example_inputs,)
+        
     def compiler(model: Union[CLIPTextTransformer, CLIPVisionTransformer], example_inputs: List[torch.Tensor]):
         # Generate gm
-        gm: torch.fx.GraphModuel = symbolic_trace(model)
+        gm: torch.fx.GraphModule = symbolic_trace(model)
         # Build CUDAGraph and return callable `run`
         return cuda_graphs_wrapper(gm, example_inputs, pool=pool)
 
@@ -31,5 +32,21 @@ def optimize_model(
 
     def run(*args, **kwargs):
         return forward(*args, **kwargs)
+
+    return run
+
+
+def optimize_model_dynamo(
+        original_model: Union[CLIPTextTransformer, CLIPVisionTransformer],
+        pool = torch.cuda.graph_pool_handle()
+    ) -> Callable:
+    import torchdynamo
+    
+    def compiler(gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]):
+        return cuda_graphs_wrapper(gm, example_inputs, pool=pool)
+
+    @torchdynamo.optimize(compiler)
+    def run(*args, **kwargs):
+        return original_model.forward(*args, **kwargs)
 
     return run

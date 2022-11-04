@@ -10,67 +10,51 @@ from optimized_model import (ORG_CLIPTextTransformer, OPT_CLIPTextTransformer,
 from clip_server.model.openclip_model import OpenCLIPModel
 
 
-N = 1        # times
-B = 8        # batch_size
-
-def benchmark(mode):
+def benchmark(use_dynamo, N, B):
     logging.getLogger().setLevel(logging.INFO)
     np.random.seed(0)
     torch.manual_seed(4896)
 
     # Load Model: mock input
-    if mode == 'text':
-        example_input = torch.randint(0, 10, (B, 77)).long().cuda()
-        opt_model = OPT_CLIPTextTransformer(example_input, B)
-        org_model = ORG_CLIPTextTransformer()
-    elif mode == 'image':
-        example_input = torch.randint(0, 10, (B, 3, 224, 224)).float().cuda()
-        opt_model = OPT_CLIPVisionTransformer(example_input, B)
-        org_model = ORG_CLIPVisionTransformer()
-    elif mode == 'all':
-        name='ViT-L-14::laion2b-s32b-b82k'
+    name='ViT-L-14::laion2b-s32b-b82k'
+    org_model = OpenCLIPModel(name=name, device='cuda')
+    example_input_image = None
+    example_input_text = None
+    if not use_dynamo:
         example_input_text = torch.randint(0, 10, (B, 77)).long().cuda()
         example_input_image = torch.randint(0, 10, (B, 3, 224, 224)).float().cuda()
-        opt_model = OPT_CLIPModel(
-            name=name,
-            device='cuda',
-            batch_size=B,
-            example_inputs_text=example_input_text,
-            example_inputs_image=example_input_image,
-            mode='image', # TODO: Remove this
-        )
-        org_model = OpenCLIPModel(name=name, device='cuda')
+    opt_model = OPT_CLIPModel(
+        name=name,
+        device='cuda',
+        batch_size=B,
+        example_inputs_text=example_input_text,     # `None` if use dynamo
+        example_inputs_image=example_input_image,   # `None` if use dynamo
+    )
 
     # Benchmark
     complete_time_baseline = 0
-    score_baseline = 0
     complete_time_optimized = 0
-    score_optimize = 0
     
-    if mode == 'text':
-        inputs = torch.randint(0, 10, (N, B, 77)).long().cuda()
-    elif mode == 'image':
-        inputs = torch.randint(0, 10, (N, B, 3, 224, 224)).cuda()
-    elif mode == 'all':
-        inputs_text = torch.randint(0, 10, (N, B, 77)).long().cuda()
-        inputs_image = torch.randint(0, 10, (N, B, 3, 224, 224)).cuda()
+    inputs_text = torch.randint(0, 10, (N, B, 77)).long().cuda()
+    # inputs_image = torch.randint(0, 10, (N, B, 3, 224, 224)).cuda()
     with torch.inference_mode(), torch.cuda.amp.autocast(enabled=True, dtype=torch.float16, cache_enabled=True):
-        for input in inputs_image:
+        for input in inputs_text:
 
             torch.cuda.synchronize()
             start = time.perf_counter()
-            _1 = org_model.encode_image(input)
+            _1 = org_model.encode_text(input)
             torch.cuda.synchronize()
             complete_time_baseline += time.perf_counter() - start
 
+            torch.cuda.synchronize()
             start = time.perf_counter()
-            _2 = opt_model.encode_image(input)
+            _2 = opt_model.encode_text(input)
             torch.cuda.synchronize()
             complete_time_optimized += time.perf_counter() - start
     
     print(f"{complete_time_baseline=:.5f}s")
     print(f"{complete_time_optimized=:.5f}s")
-    show_diff(_1, _2)
+    return complete_time_baseline, complete_time_optimized
     
 
 def show_diff(a, b):
@@ -79,10 +63,24 @@ def show_diff(a, b):
     print(b)
     
     a = a.cpu().numpy()[0]
-    b = b[0].detach().cpu().numpy()[0]
+    b = b.cpu().numpy()[0]
     plt.plot(np.arange(768), a-b)
     plt.show()
     
 
 if __name__ == "__main__":
-    benchmark('all')
+    complete_time_baseline = []
+    complete_time_optimized = []
+    saved_time_percent = []
+    for N in [1, 10, 1000, 10000]:
+        for B in [1, 2, 4, 8, 16]:
+            print(f"Runing on N={N}, B={B}")
+            complete_time_baseline_, complete_time_optimized_ = benchmark(True, N, B)
+            complete_time_baseline.append(complete_time_baseline_)
+            complete_time_optimized.append(complete_time_optimized_)
+            saved_time_percent_ = (complete_time_optimized_-complete_time_baseline_)/complete_time_baseline_
+            saved_time_percent.append(saved_time_percent_)
+            print(f"Saved time:{saved_time_percent_}")
+    print(complete_time_baseline)
+    print(complete_time_optimized)
+    print(saved_time_percent)
