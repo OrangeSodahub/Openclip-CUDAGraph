@@ -10,8 +10,8 @@ from optimized_model import (ORG_CLIPTextTransformer, OPT_CLIPTextTransformer,
 from clip_server.model.openclip_model import OpenCLIPModel
 
 
-N = 1000    # times
-B = 1       # batch_size
+N = 100     # times
+B = 2       # batch_size
 
 def benchmark(mode):
     logging.getLogger().setLevel(logging.INFO)
@@ -31,7 +31,13 @@ def benchmark(mode):
         name='ViT-L-14::laion2b-s32b-b82k'
         example_input_text = torch.randint(0, 10, (B, 77)).long().cuda()
         example_input_image = torch.randint(0, 10, (B, 3, 224, 224)).float().cuda()
-        opt_model = OPT_CLIPModel(name=name, device='cuda', example_inputs_text=example_input_text, example_inputs_image=example_input_image)
+        opt_model = OPT_CLIPModel(
+            name=name,
+            device='cuda',
+            batch_size=B,
+            example_inputs_text=example_input_text,
+            example_inputs_image=example_input_image,
+        )
         org_model = OpenCLIPModel(name=name, device='cuda')
 
     # Benchmark

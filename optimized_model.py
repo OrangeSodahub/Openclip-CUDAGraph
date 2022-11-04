@@ -78,11 +78,11 @@ class OPT_CLIPVisionTransformer(ORG_CLIPVisionTransformer):
 
 
 class OPT_CLIPModel():
-    def __init__(self, name: str, device: str = 'cpu', jit: bool = False,
+    def __init__(self, name: str, device: str = 'cpu', jit: bool = False, batch_size: int = 1,
                  example_inputs_text = None, example_inputs_image = None, **kwargs):
         assert example_inputs_text is not None or example_inputs_image is not None
         
-        self._model = CLIPModel(name, device, jit)
+        self._model = CLIPModel(name, device, jit, batch_size)
 
         self._encode_text = optimize_model(
             original_model=self._model._model_text,
