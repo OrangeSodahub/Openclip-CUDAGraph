@@ -76,8 +76,8 @@ if __name__ == "__main__":
     for _ in range(2):
         _, _ = benchmark(True, 1, 1)
     # benchmark
-    for N in [10, 1000, 10000]:
-        for B in [1, 2, 4, 8]:
+    for N in [1, 10, 1000, 10000]:
+        for B in [1, 2, 4, 8, 16]:
             print(f"Runing on N={N}, B={B}")
             complete_time_baseline_, complete_time_optimized_ = benchmark(True, N, B)
             complete_time_baseline.append(complete_time_baseline_)

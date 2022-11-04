@@ -9,12 +9,17 @@ And also not use `torchdynamo.optimize()`.
 
 It saves the time cost on starting the model multiply times.
 
-Tested on RTX3080:
+Tested on RTX3080: `saved=(baseline-opt)/opt`
+
+<left class="half">
+    <img src=./assets/1.png width=80%>
+</left>
+
 
 ---------------------------------------------------------------------------------
 times   |shape     | model                      | pt (s)   | graph (s)| saved (%)
 --------|----------|----------------------------|----------|----------|----------
-|1      |(1, 77)   |ViT-L-14::laion2b-s32b-b82k |0.5031    |1.4660    |-191.40%
+|1      |(1, 77)   |ViT-L-14::laion2b-s32b-b82k |0.5031    |1.4660    |-17909.40%
 |       |(2, 77)   |                            |0.0073    |1.2455    |-16742.68%
 |       |(4, 77)   |                            |0.0070    |1.2285    |-17288.66%
 |       |(8, 77)   |                            |0.0071    |1.2160    |-16885.65%
