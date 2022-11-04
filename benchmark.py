@@ -36,19 +36,19 @@ def benchmark(use_dynamo, N, B):
     complete_time_optimized = 0
     
     inputs_text = torch.randint(0, 10, (N, B, 77)).long().cuda()
-    # inputs_image = torch.randint(0, 10, (N, B, 3, 224, 224)).cuda()
+    inputs_image = torch.randint(0, 10, (N, B, 3, 224, 224)).half().cuda()
     with torch.inference_mode(), torch.cuda.amp.autocast(enabled=True, dtype=torch.float16, cache_enabled=True):
-        for input in inputs_text:
+        for input in inputs_image:
 
             torch.cuda.synchronize()
             start = time.perf_counter()
-            _1 = org_model.encode_text(input)
+            _1 = org_model.encode_image(input)
             torch.cuda.synchronize()
             complete_time_baseline += time.perf_counter() - start
 
             torch.cuda.synchronize()
             start = time.perf_counter()
-            _2 = opt_model.encode_text(input)
+            _2 = opt_model.encode_image(input)
             torch.cuda.synchronize()
             complete_time_optimized += time.perf_counter() - start
     
@@ -72,8 +72,12 @@ if __name__ == "__main__":
     complete_time_baseline = []
     complete_time_optimized = []
     saved_time_percent = []
-    for N in [1, 10, 1000, 10000]:
-        for B in [1, 2, 4, 8, 16]:
+    # warm up
+    for _ in range(2):
+        _, _ = benchmark(True, 1, 1)
+    # benchmark
+    for N in [10, 1000, 10000]:
+        for B in [1, 2, 4, 8]:
             print(f"Runing on N={N}, B={B}")
             complete_time_baseline_, complete_time_optimized_ = benchmark(True, N, B)
             complete_time_baseline.append(complete_time_baseline_)
