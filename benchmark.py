@@ -45,18 +45,19 @@ def benchmark(mode):
     elif mode == 'image':
         inputs = torch.randint(0, 10, (N, B, 3, 224, 224)).cuda()
     elif mode == 'all':
-        inputs = torch.randint(0, 10, (N, B, 77)).long().cuda()
+        inputs_text = torch.randint(0, 10, (N, B, 77)).long().cuda()
+        inputs_image = torch.randint(0, 10, (N, B, 3, 224, 224)).cuda()
     with torch.inference_mode(), torch.cuda.amp.autocast(enabled=True, dtype=torch.float16, cache_enabled=True):
-        for input in inputs:
+        for input in inputs_image:
 
             torch.cuda.synchronize()
             start = time.perf_counter()
-            _1 = org_model.encode_text(input)
+            _1 = org_model.encode_image(input)
             torch.cuda.synchronize()
             complete_time_baseline += time.perf_counter() - start
 
             start = time.perf_counter()
-            _2 = opt_model.encode_text(input)
+            _2 = opt_model.encode_image(input)
             torch.cuda.synchronize()
             complete_time_optimized += time.perf_counter() - start
     

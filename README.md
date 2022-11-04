@@ -13,5 +13,6 @@ complete_time_optimized=2.46688s
 ```
 visionclip model (1000 * shape=(1, 3, 224, 224)):
 ```
-TBD...
+complete_time_baseline=16.79948s
+complete_time_optimized=15.78642s
 ```
