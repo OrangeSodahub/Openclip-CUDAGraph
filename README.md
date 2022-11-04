@@ -6,13 +6,17 @@ Tips: There are three steps from the original model to final callable optimized 
 And also not use `torchdynamo.optimize()`.
 
 ### Benchmark
-textclip model (1000 * shape=(1, 77)):
-```
-complete_time_baseline=6.39887s
-complete_time_optimized=2.46688s
-```
-visionclip model (1000 * shape=(1, 3, 224, 224)):
-```
-complete_time_baseline=16.79948s
-complete_time_optimized=15.78642s
-```
+
+Tested on RTX3080:
+--------------------------------------------------------------
+shape     | model                      | pt (ms)  | graph (ms)
+----------|----------------------------|----------|-----------
+(1, 77)   |ViT-L-14::laion2b-s32b-b82k |6.3988    |2.4668    |
+(2, 77)   |                            |6.9618    |3.3369    |
+(4, 77)   |                            |7.3371    |4.7601    |
+(8, 77)   |                            |9.3325    |8.9874    |
+(16, 77)  |                            |10.0143   |17.3033   |
+(1, 3, 224, 224)|                      |16.98     |16.75     |
+(2, 3, 224, 224)|                      |18.66     |28.13     |
+(4, 3, 224, 224)|                      |43.23     |50.18     |
+

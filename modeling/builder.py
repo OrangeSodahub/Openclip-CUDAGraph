@@ -31,6 +31,7 @@ def load_openclip_model_seperately(
     force_quick_gelu: bool = False,
     pretrained_image: bool = False,
     batch_size: int = 1,
+    mode: str = 'text',
 ):
     model_name = model_name.replace(
         '/', '-'
@@ -56,15 +57,15 @@ def load_openclip_model_seperately(
 
     # begin building model
     embed_dim = model_cfg['embed_dim']
-    text_cfg = model_cfg['text_cfg']
-    vision_cfg = model_cfg['vision_cfg']
     quick_gelu = model_cfg.get('quick_gelu', False)
-
-    text_model = CLIPTextTransformer(embed_dim, text_cfg, quick_gelu, batch_size)
-    vision_model = CLIPVisionTransformer(embed_dim, vision_cfg, quick_gelu, batch_size)
-
-    text_model.eval()
-    vision_model.eval()
+    if mode == 'text':
+        text_cfg = model_cfg['text_cfg']
+        text_model = CLIPTextTransformer(embed_dim, text_cfg, quick_gelu, batch_size)
+        text_model.eval()
+    else:
+        vision_cfg = model_cfg['vision_cfg']
+        vision_model = CLIPVisionTransformer(embed_dim, vision_cfg, quick_gelu, batch_size)
+        vision_model.eval()
 
     # load params
     state_dict = load_state_dict(model_path)
@@ -80,14 +81,15 @@ def load_openclip_model_seperately(
         if v.dtype == torch.float32:
             v.data == v.data.half()
 
-    text_model.load_state_dict(text_state_dict)
-    vision_model.load_state_dict(vision_state_dict)
-
-    text_model.to(device=device)
-    vision_model.to(device=device)
-
-    if jit:
-        text_model = torch.jit.script(text_model)
-        vision_model = torch.jit.script(vision_model)
-
-    return text_model, vision_model
+    if mode == 'text':
+        text_model.load_state_dict(text_state_dict)
+        text_model.to(device=device)
+        if jit:
+            text_model = torch.jit.script(text_model)
+        return text_model, None
+    else:
+        vision_model.load_state_dict(vision_state_dict)
+        vision_model.to(device=device)
+        if jit:
+            vision_model = torch.jit.script(vision_model)
+        return None, vision_model

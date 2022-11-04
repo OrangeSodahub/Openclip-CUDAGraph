@@ -24,7 +24,7 @@ class BaseCLIPModel:
 
 
 class CLIPModel(BaseCLIPModel):
-    def __new__(cls, name: str, device: str = 'cpu', jit: bool = False, batch_size: int = 1, **kwargs):
+    def __new__(cls, name: str, device: str = 'cpu', jit: bool = False, batch_size: int = 1, mode: str = 'text', **kwargs):
         if cls is CLIPModel:
             if name in _OPENCLIP_MODELS:
                 from modeling.openclip_model import OpenCLIPModel

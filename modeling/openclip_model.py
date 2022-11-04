@@ -14,7 +14,7 @@ from modeling.builder import load_openclip_model_seperately
 
 
 class OpenCLIPModel(CLIPModel):
-    def __init__(self, name: str, device: str = 'cpu', jit: bool = False, batch_size:int = 1, **kwargs):
+    def __init__(self, name: str, device: str = 'cpu', jit: bool = False, batch_size: int = 1, mode: str = 'text', **kwargs):
         super().__init__(name, **kwargs)
 
         if '::' in name:
@@ -32,7 +32,7 @@ class OpenCLIPModel(CLIPModel):
             self._model = load_openai_model(model_path, device=device, jit=jit)
         else:
             self._model_text, self._model_vision = load_openclip_model_seperately(
-                self._model_name, model_path=model_path, device=device, jit=jit, batch_size=batch_size
+                self._model_name, model_path=model_path, device=device, jit=jit, batch_size=batch_size, mode=mode,
             )
 
     # @staticmethod

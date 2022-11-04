@@ -10,8 +10,8 @@ from optimized_model import (ORG_CLIPTextTransformer, OPT_CLIPTextTransformer,
 from clip_server.model.openclip_model import OpenCLIPModel
 
 
-N = 100     # times
-B = 2       # batch_size
+N = 1        # times
+B = 8        # batch_size
 
 def benchmark(mode):
     logging.getLogger().setLevel(logging.INFO)
@@ -37,6 +37,7 @@ def benchmark(mode):
             batch_size=B,
             example_inputs_text=example_input_text,
             example_inputs_image=example_input_image,
+            mode='image', # TODO: Remove this
         )
         org_model = OpenCLIPModel(name=name, device='cuda')
 
