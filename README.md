@@ -12,7 +12,7 @@ Tested on RTX3080:
 It saves the time cost on starting the model multiply times. When N gets larger and batch_size gets smaller, it performs better.
 
 <left class="half">
-    <img src=./assets/1.png width=80%>
+    <img src=./assets/1.png width=60%>
 </left>
 
 
