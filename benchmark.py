@@ -36,19 +36,19 @@ def benchmark(use_dynamo, N, B):
     complete_time_optimized = 0
     
     inputs_text = torch.randint(0, 10, (N, B, 77)).long().cuda()
-    inputs_image = torch.randint(0, 10, (N, B, 3, 224, 224)).half().cuda()
+    # inputs_image = torch.randint(0, 10, (N, B, 3, 224, 224)).half().cuda()
     with torch.inference_mode(), torch.cuda.amp.autocast(enabled=True, dtype=torch.float16, cache_enabled=True):
-        for input in inputs_image:
+        for input in inputs_text:
 
             torch.cuda.synchronize()
             start = time.perf_counter()
-            _1 = org_model.encode_image(input)
+            _1 = org_model.encode_text(input)
             torch.cuda.synchronize()
             complete_time_baseline += time.perf_counter() - start
 
             torch.cuda.synchronize()
             start = time.perf_counter()
-            _2 = opt_model.encode_image(input)
+            _2 = opt_model.encode_text(input)
             torch.cuda.synchronize()
             complete_time_optimized += time.perf_counter() - start
     
@@ -71,20 +71,20 @@ def show_diff(a, b):
 if __name__ == "__main__":
     complete_time_baseline = []
     complete_time_optimized = []
-    saved_time_percent = []
+    speed_up = []
     # warm up
     for _ in range(2):
         _, _ = benchmark(True, 1, 1)
     # benchmark
-    for N in [1, 10, 1000, 10000]:
+    for N in [1, 100, 1000, 5000, 10000]:
         for B in [1, 2, 4, 8, 16]:
             print(f"Runing on N={N}, B={B}")
             complete_time_baseline_, complete_time_optimized_ = benchmark(True, N, B)
             complete_time_baseline.append(complete_time_baseline_)
             complete_time_optimized.append(complete_time_optimized_)
-            saved_time_percent_ = (complete_time_optimized_-complete_time_baseline_)/complete_time_baseline_
-            saved_time_percent.append(saved_time_percent_)
-            print(f"Saved time:{saved_time_percent_}")
+            speed_up_ = complete_time_baseline_/complete_time_optimized_
+            speed_up.append(speed_up_)
+            print(f"Speed up:{speed_up_}\n")
     print(complete_time_baseline)
     print(complete_time_optimized)
-    print(saved_time_percent)
+    print(speed_up)
