@@ -76,12 +76,12 @@ if __name__ == "__main__":
     speed_up = []
     # warm up
     for _ in range(2):
-        _, _ = benchmark(True, False, 1, 1)
+        _, _ = benchmark(True, True, 1, 1)
     # benchmark
     for N in [1, 100, 1000, 5000, 10000]:
         for B in [1, 2, 4, 8, 16]:
             print(f"Runing on N={N}, B={B}")
-            complete_time_baseline_, complete_time_optimized_ = benchmark(True, False, N, B)
+            complete_time_baseline_, complete_time_optimized_ = benchmark(True, True, N, B)
             complete_time_baseline.append(complete_time_baseline_)
             complete_time_optimized.append(complete_time_optimized_)
             speed_up_ = complete_time_baseline_/complete_time_optimized_

@@ -245,9 +245,17 @@ class CLIPTextTransformer(nn.Module):
 
         # # x.shape = [batch_size, n_ctx, transformer.width]
         # # take features from the eot embedding (eot_token is the highest number in each sequence)
-        # x = x[torch.arange(self.batch_size), text.argmax(dim=-1)] @ self.text_projection
+        index1 = np.arange(self.batch_size)
+        index2 = text.argmax(dim=-1)
 
-        return x[0]
+        features = []
+        for idx1, idx2 in zip(index1, index2):
+            features.append(x[idx1][idx2])
+            
+        features = torch.stack(features)
+        features = features.matmul(self.text_projection)
+        
+        return features
 
     def forward(self, text):
         return self.encode_text(text)
