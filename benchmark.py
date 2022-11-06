@@ -10,14 +10,13 @@ from optimized_model import (ORG_CLIPTextTransformer, OPT_CLIPTextTransformer,
 from clip_server.model.openclip_model import OpenCLIPModel
 
 
-def benchmark(use_dynamo, N, B):
+def benchmark(use_dynamo, pt, N, B):
     logging.getLogger().setLevel(logging.INFO)
     np.random.seed(0)
     torch.manual_seed(4896)
 
     # Load Model: mock input
     name='ViT-L-14::laion2b-s32b-b82k'
-    org_model = OpenCLIPModel(name=name, device='cuda')
     example_input_image = None
     example_input_text = None
     if not use_dynamo:
@@ -30,6 +29,8 @@ def benchmark(use_dynamo, N, B):
         example_inputs_text=example_input_text,     # `None` if use dynamo
         example_inputs_image=example_input_image,   # `None` if use dynamo
     )
+    if pt:
+        org_model = OpenCLIPModel(name=name, device='cuda')
 
     # Benchmark
     complete_time_baseline = 0
@@ -40,11 +41,12 @@ def benchmark(use_dynamo, N, B):
     with torch.inference_mode(), torch.cuda.amp.autocast(enabled=True, dtype=torch.float16, cache_enabled=True):
         for input in inputs_text:
 
-            torch.cuda.synchronize()
-            start = time.perf_counter()
-            _1 = org_model.encode_text(input)
-            torch.cuda.synchronize()
-            complete_time_baseline += time.perf_counter() - start
+            if pt:
+                torch.cuda.synchronize()
+                start = time.perf_counter()
+                _1 = org_model.encode_text(input)
+                torch.cuda.synchronize()
+                complete_time_baseline += time.perf_counter() - start
 
             torch.cuda.synchronize()
             start = time.perf_counter()
@@ -74,12 +76,12 @@ if __name__ == "__main__":
     speed_up = []
     # warm up
     for _ in range(2):
-        _, _ = benchmark(True, 1, 1)
+        _, _ = benchmark(True, False, 1, 1)
     # benchmark
     for N in [1, 100, 1000, 5000, 10000]:
         for B in [1, 2, 4, 8, 16]:
             print(f"Runing on N={N}, B={B}")
-            complete_time_baseline_, complete_time_optimized_ = benchmark(True, N, B)
+            complete_time_baseline_, complete_time_optimized_ = benchmark(True, False, N, B)
             complete_time_baseline.append(complete_time_baseline_)
             complete_time_optimized.append(complete_time_optimized_)
             speed_up_ = complete_time_baseline_/complete_time_optimized_
