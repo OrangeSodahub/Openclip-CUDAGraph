@@ -11,10 +11,9 @@ Tested Model (on RTX3080): ViT-L-14::laion2b-s32b-b82k
 
 Graph's time cost includes building graphs and inference. It saves the time cost on starting the model multiply times. When N gets larger and batch_size gets smaller, it performs better.
 
-<center class="half">
-    <img src=./assets/1.png width=40%>
-    <img src=./assets/2.png width=40%>
-</center>
+<p float="left">
+    <img src=./assets/1.png width=40%><img src=./assets/2.png width=40%>
+</p>
 
 
 **RES**: Since data needs to be created on the CPU and the moved to the GPU, the value of RES will get a peak when the program starts and then decrease. Here record the stable value after the decrease.
