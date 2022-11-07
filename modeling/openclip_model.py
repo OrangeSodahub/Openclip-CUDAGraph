@@ -14,7 +14,7 @@ from modeling.builder import load_openclip_model_seperately
 
 
 class OpenCLIPModel(CLIPModel):
-    def __init__(self, name: str, device: str = 'cpu', jit: bool = False, batch_size: int = 1, **kwargs):
+    def __init__(self, name: str, device: str = 'cpu', jit: bool = False, **kwargs):
         super().__init__(name, **kwargs)
 
         if '::' in name:
@@ -32,21 +32,5 @@ class OpenCLIPModel(CLIPModel):
             self._model = load_openai_model(model_path, device=device, jit=jit)
         else:
             self._model_text, self._model_vision = load_openclip_model_seperately(
-                self._model_name, model_path=model_path, device=device, jit=jit, batch_size=batch_size
+                self._model_name, model_path=model_path, device=device, jit=jit
             )
-
-    # @staticmethod
-    # def get_model_name(name: str):
-    #     if '::' in name:
-    #         model_name, pretrained = name.split('::')
-    #     else:
-    #         model_name = name
-    #     if model_name == 'ViT-L/14@336px':
-    #         return 'ViT-L-14-336'
-    #     return model_name.replace('/', '-')
-
-    # def encode_text(self, input_ids: 'torch.Tensor', **kwargs):
-    #     return self._model.encode_text(input_ids)
-
-    # def encode_image(self, pixel_values: 'torch.Tensor', **kwargs):
-    #     return self._model.encode_image(pixel_values)

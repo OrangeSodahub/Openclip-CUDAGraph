@@ -36,10 +36,10 @@ def benchmark(use_dynamo, pt, N, B):
     complete_time_baseline = 0
     complete_time_optimized = 0
     
-    inputs_text = torch.randint(0, 10, (N, B, 77)).long().cuda()
+    input = torch.randint(0, 10, (B, 77)).long().cuda()
     # inputs_image = torch.randint(0, 10, (N, B, 3, 224, 224)).half().cuda()
     with torch.inference_mode(), torch.cuda.amp.autocast(enabled=True, dtype=torch.float16, cache_enabled=True):
-        for input in inputs_text:
+        for _ in range(N):
 
             if pt:
                 torch.cuda.synchronize()
@@ -71,6 +71,7 @@ def show_diff(a, b):
     
 
 if __name__ == "__main__":
+    import time
     complete_time_baseline = []
     complete_time_optimized = []
     speed_up = []
@@ -87,6 +88,7 @@ if __name__ == "__main__":
             speed_up_ = complete_time_baseline_/complete_time_optimized_
             speed_up.append(speed_up_)
             print(f"Speed up:{speed_up_}\n")
+            time.sleep(10)
     print(complete_time_baseline)
     print(complete_time_optimized)
     print(speed_up)

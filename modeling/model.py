@@ -65,10 +65,8 @@ class VisualTransformer(nn.Module):
         mlp_ratio: float,
         output_dim: int,
         act_layer: Callable = nn.GELU,
-        batch_size: int = 1,
     ):
         super().__init__()
-        self.batch_size = batch_size
         self.image_size = to_2tuple(image_size)
         self.patch_size = to_2tuple(patch_size)
         self.grid_size = (
@@ -138,7 +136,6 @@ class CLIPVisionTransformer(nn.Module):
         embed_dim: int,
         vision_cfg: CLIPVisionCfg,
         quick_gelu: bool = False,
-        batch_size: int = 1,
     ):
         super().__init__()
         if isinstance(vision_cfg, dict):
@@ -158,7 +155,6 @@ class CLIPVisionTransformer(nn.Module):
             mlp_ratio=vision_cfg.mlp_ratio,
             output_dim=embed_dim,
             act_layer=act_layer,
-            batch_size=batch_size,
         )
 
     def encode_image(self, image):
@@ -174,13 +170,11 @@ class CLIPTextTransformer(nn.Module):
         embed_dim: int,
         text_cfg: CLIPTextCfg,
         quick_gelu: bool = False,
-        batch_size: int = 1,
     ):
         super().__init__()
         if isinstance(text_cfg, dict):
             text_cfg = CLIPTextCfg(**text_cfg)
 
-        self.batch_size = batch_size
         self.context_length = text_cfg.context_length
         act_layer = QuickGELUActivation if quick_gelu else nn.GELU
 
@@ -245,17 +239,7 @@ class CLIPTextTransformer(nn.Module):
 
         # # x.shape = [batch_size, n_ctx, transformer.width]
         # # take features from the eot embedding (eot_token is the highest number in each sequence)
-        index1 = np.arange(self.batch_size)
-        index2 = text.argmax(dim=-1)
-
-        features = []
-        for idx1, idx2 in zip(index1, index2):
-            features.append(x[idx1][idx2])
-            
-        features = torch.stack(features)
-        features = features.matmul(self.text_projection)
-        
-        return features
+        return x, self.text_projection
 
     def forward(self, text):
         return self.encode_text(text)

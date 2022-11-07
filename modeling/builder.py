@@ -27,7 +27,6 @@ def load_openclip_model_seperately(
     jit: bool = False,
     force_quick_gelu: bool = False,
     pretrained_image: bool = False,
-    batch_size: int = 1,
 ):
     model_name = model_name.replace(
         '/', '-'
@@ -55,10 +54,10 @@ def load_openclip_model_seperately(
     embed_dim = model_cfg['embed_dim']
     quick_gelu = model_cfg.get('quick_gelu', False)
     text_cfg = model_cfg['text_cfg']
-    text_model = CLIPTextTransformer(embed_dim, text_cfg, quick_gelu, batch_size)
+    text_model = CLIPTextTransformer(embed_dim, text_cfg, quick_gelu)
     text_model.eval()
     vision_cfg = model_cfg['vision_cfg']
-    vision_model = CLIPVisionTransformer(embed_dim, vision_cfg, quick_gelu, batch_size)
+    vision_model = CLIPVisionTransformer(embed_dim, vision_cfg, quick_gelu)
     vision_model.eval()
 
     # load params

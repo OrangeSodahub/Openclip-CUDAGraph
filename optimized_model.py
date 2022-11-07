@@ -1,3 +1,4 @@
+import torch
 from modeling.clip_model import CLIPModel
 from model_optimization import optimize_model, optimize_model_dynamo
 from modeling.model import CLIPTextTransformer, CLIPVisionTransformer
@@ -78,11 +79,10 @@ class OPT_CLIPVisionTransformer(ORG_CLIPVisionTransformer):
 
 
 class OPT_CLIPModel():
-    def __init__(self, name: str, device: str = 'cpu', jit: bool = False, batch_size: int = 1,
+    def __init__(self, name: str, device: str = 'cpu', jit: bool = False,
                  example_inputs_text = None, example_inputs_image = None, **kwargs):
 
-        # TODO: remove batch_size
-        self._model = CLIPModel(name, device, jit, batch_size)
+        self._model = CLIPModel(name, device, jit)
         if example_inputs_text is None and example_inputs_image is None:
             self._encode_text = optimize_model_dynamo(original_model=self._model._model_text)
             self._encode_image = optimize_model_dynamo(original_model=self._model._model_vision)
@@ -97,7 +97,8 @@ class OPT_CLIPModel():
             )
 
     def encode_text(self, text):
-        return self._encode_text(text)
+        features, proj = self._encode_text(text)
+        return features[torch.arange(features.shape[0]), features.argmax(dim=-1)] @ proj
 
     def encode_image(self, image):
         return self._encode_image(image)
