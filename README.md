@@ -14,7 +14,7 @@ Tested Model (on RTX3080): ViT-L-14::laion2b-s32b-b82k
 </p>
 
 
-**RES**: Since data needs to be created on the CPU and the moved to the GPU, the value of RES will get a peak when the program starts and then decrease. Here record the stable value after the decrease.
+**RES**: Since data needs to be created on the CPU and the moved to the GPU, the value of RES will get a peak when the program starts and then decrease. Here record the peak value.
 
 **graph**: `[torch dynamo]/[symbolic trace]` for torch dynamo's time, it includes building graphs and inference while for symbolic trace, building graph's cost is not been counted. It saves the time cost on starting the model multiply times. When N gets larger and batch_size gets smaller, it performs better.
 
