@@ -88,7 +88,10 @@ if __name__ == "__main__":
             speed_up_ = complete_time_baseline_/complete_time_optimized_
             speed_up.append(speed_up_)
             print(f"Speed up:{speed_up_}\n")
-            time.sleep(10)
     print(complete_time_baseline)
     print(complete_time_optimized)
     print(speed_up)
+
+    np.savetxt('./assets/baseline.text', complete_time_baseline)
+    np.savetxt('./assets/optimized.text', complete_time_optimized)
+    np.savetxt('./assets/speed_up.text', speed_up)

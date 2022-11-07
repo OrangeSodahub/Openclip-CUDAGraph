@@ -98,7 +98,7 @@ class OPT_CLIPModel():
 
     def encode_text(self, text):
         features, proj = self._encode_text(text)
-        return features[torch.arange(features.shape[0]), features.argmax(dim=-1)] @ proj
+        return features[torch.arange(features.shape[0]), text.argmax(dim=-1)] @ proj
 
     def encode_image(self, image):
         return self._encode_image(image)
