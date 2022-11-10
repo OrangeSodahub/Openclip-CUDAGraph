@@ -82,7 +82,7 @@ if __name__ == "__main__":
     for N in [1, 100, 1000, 10000]:
         for B in [1, 2, 4, 8, 16]:
             print(f"Runing on N={N}, B={B}")
-            complete_time_baseline_, complete_time_optimized_, mean_diff_ = benchmark(False, True, N, B, 'text')
+            complete_time_baseline_, complete_time_optimized_, mean_diff_ = benchmark(True, True, N, B, 'text')
             complete_time_baseline.append(complete_time_baseline_)
             complete_time_optimized.append(complete_time_optimized_)
             mean_diff.append(mean_diff_)
