@@ -80,21 +80,25 @@ class OPT_CLIPVisionTransformer(ORG_CLIPVisionTransformer):
 
 class OPT_CLIPModel():
     def __init__(self, name: str, device: str = 'cpu', jit: bool = False, batch_size: int = 1,
-                 example_inputs_text = None, example_inputs_image = None, **kwargs):
+                 example_inputs = None, **kwargs):
 
         self._model = CLIPModel(name, device, jit, batch_size)
-        if example_inputs_text is None and example_inputs_image is None:
+        if example_inputs is None:
             self._encode_text = optimize_model_dynamo(original_model=self._model._model_text)
             self._encode_image = optimize_model_dynamo(original_model=self._model._model_vision)
         else:
-            self._encode_text = optimize_model(
-                original_model=self._model._model_text,
-                example_inputs=example_inputs_text
-            )
-            self._encode_image = optimize_model(
-                original_model=self._model._model_vision,
-                example_inputs=example_inputs_image
-            )
+            # TextModel
+            if example_inputs.dim() == 2:
+                self._encode_text = optimize_model(
+                    original_model=self._model._model_text,
+                    example_inputs=example_inputs
+                )
+            # VisionModel
+            else:
+                self._encode_image = optimize_model(
+                    original_model=self._model._model_vision,
+                    example_inputs=example_inputs
+                )
 
     def encode_text(self, text):
         features, proj = self._encode_text(text)

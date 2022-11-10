@@ -10,24 +10,24 @@ from optimized_model import (ORG_CLIPTextTransformer, OPT_CLIPTextTransformer,
 from clip_server.model.openclip_model import OpenCLIPModel
 
 
-def benchmark(use_dynamo = False, pt = True, N = 1, B = 1):
+def benchmark(use_dynamo = False, pt = True, N = 1, B = 1, mode = 'text'):
     logging.getLogger().setLevel(logging.INFO)
     np.random.seed(0)
     torch.manual_seed(4896)
 
     # Load Model: mock input
     name='ViT-L-14::laion2b-s32b-b82k'
-    example_input_image = None
-    example_input_text = None
+    example_input = None
     if not use_dynamo:
-        example_input_text = torch.randint(0, 10, (B, 77)).long().cuda()
-        example_input_image = torch.randint(0, 10, (B, 3, 224, 224)).float().cuda()
+        if mode == 'text':
+            example_inputs = torch.randint(0, 10, (B, 77)).long().cuda()
+        elif mode == 'image':
+            example_inputs = torch.randint(0, 10, (B, 3, 224, 224)).float().cuda()
     opt_model = OPT_CLIPModel(
         name=name,
         device='cuda',
         batch_size=B,
-        example_inputs_text=example_input_text,     # `None` if use dynamo
-        example_inputs_image=example_input_image,   # `None` if use dynamo
+        example_inputs_text=example_inputs     # `None` if use dynamo
     )
     if pt:
         org_model = OpenCLIPModel(name=name, device='cuda')
@@ -54,6 +54,7 @@ def benchmark(use_dynamo = False, pt = True, N = 1, B = 1):
                 start = time.perf_counter()
                 _1 = org_model.encode_text(input)
                 torch.cuda.synchronize()
+                complete_time_baseline += time.perf_counter() - start
 
             torch.cuda.synchronize()
             start = time.perf_counter()
@@ -78,10 +79,10 @@ if __name__ == "__main__":
     mean_diff = []
     speed_up = []
     # benchmark
-    for N in [100]:
+    for N in [1, 100, 1000, 10000]:
         for B in [1, 2, 4, 8, 16]:
             print(f"Runing on N={N}, B={B}")
-            complete_time_baseline_, complete_time_optimized_, mean_diff_ = benchmark(False, True, N, B)
+            complete_time_baseline_, complete_time_optimized_, mean_diff_ = benchmark(False, True, N, B, 'text')
             complete_time_baseline.append(complete_time_baseline_)
             complete_time_optimized.append(complete_time_optimized_)
             mean_diff.append(mean_diff_)
