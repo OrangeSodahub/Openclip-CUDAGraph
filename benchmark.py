@@ -37,23 +37,14 @@ def benchmark(use_dynamo = False, pt = True, N = 1, B = 1):
     complete_time_optimized = 0
     
     input = torch.randint(0, 10, (B, 77)).long().cuda()
-    # inputs_image = torch.randint(0, 10, (N, B, 3, 224, 224)).half().cuda()
+    # inputs = torch.randint(0, 10, (N, B, 3, 224, 224)).half().cuda()
     with torch.inference_mode(), torch.cuda.amp.autocast(enabled=True, dtype=torch.float16, cache_enabled=True):
         # warm up
-        for _ in range(N):
+        for _ in range(5):
 
             if pt:
-                torch.cuda.synchronize()
-                start = time.perf_counter()
                 _1 = org_model.encode_text(input)
-                torch.cuda.synchronize()
-                complete_time_baseline += time.perf_counter() - start
-
-            torch.cuda.synchronize()
-            start = time.perf_counter()
             _2 = opt_model.encode_text(input)
-            torch.cuda.synchronize()
-            complete_time_optimized += time.perf_counter() - start
         
         # benchmark
         for _ in range(N):
@@ -63,36 +54,37 @@ def benchmark(use_dynamo = False, pt = True, N = 1, B = 1):
                 start = time.perf_counter()
                 _1 = org_model.encode_text(input)
                 torch.cuda.synchronize()
+
+            torch.cuda.synchronize()
+            start = time.perf_counter()
+            _2 = opt_model.encode_text(input)
+            torch.cuda.synchronize()
             complete_time_optimized += time.perf_counter() - start
     
     print(f"{complete_time_baseline=:.5f}s")
     print(f"{complete_time_optimized=:.5f}s")
-    return complete_time_baseline, complete_time_optimized
-    
-
-def show_diff(a, b):
-    from matplotlib import pyplot as plt
-    print(a)
-    print(b)
-    
-    a = a.cpu().numpy()[0]
-    b = b.cpu().numpy()[0]
-    plt.plot(np.arange(768), a-b)
-    plt.show()
+    if pt:
+        mean_diff = (_1-_2).abs().mean().cpu().numpy()
+    else:
+        mean_diff = 0.
+    print(f"{mean_diff=:.5f}")
+    return complete_time_baseline, complete_time_optimized, mean_diff
     
 
 if __name__ == "__main__":
     import time
     complete_time_baseline = []
     complete_time_optimized = []
+    mean_diff = []
     speed_up = []
     # benchmark
     for N in [100]:
         for B in [1, 2, 4, 8, 16]:
             print(f"Runing on N={N}, B={B}")
-            complete_time_baseline_, complete_time_optimized_ = benchmark(False, False, N, B)
+            complete_time_baseline_, complete_time_optimized_, mean_diff_ = benchmark(False, True, N, B)
             complete_time_baseline.append(complete_time_baseline_)
             complete_time_optimized.append(complete_time_optimized_)
+            mean_diff.append(mean_diff_)
             speed_up_ = complete_time_baseline_/complete_time_optimized_
             speed_up.append(speed_up_)
             print(f"Speed up:{speed_up_}\n")
@@ -100,4 +92,5 @@ if __name__ == "__main__":
             time.sleep(10)
     print(complete_time_baseline)
     print(complete_time_optimized)
+    print(mean_diff)
     print(speed_up)
