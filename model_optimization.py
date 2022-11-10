@@ -1,4 +1,5 @@
 import torch
+import torchdynamo
 from typing import Callable, Union, List
 
 from modeling.model import CLIPTextTransformer, CLIPVisionTransformer
@@ -40,7 +41,6 @@ def optimize_model_dynamo(
         original_model: Union[CLIPTextTransformer, CLIPVisionTransformer],
         pool = torch.cuda.graph_pool_handle()
     ) -> Callable:
-    import torchdynamo
     
     def compiler(gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]):
         return cuda_graphs_wrapper(gm, example_inputs, pool=pool)

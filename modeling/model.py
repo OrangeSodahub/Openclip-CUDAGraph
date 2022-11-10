@@ -57,6 +57,7 @@ class Transformer(nn.Module):
 class VisualTransformer(nn.Module):
     def __init__(
         self,
+        batch_size: int,
         image_size: int,
         patch_size: int,
         width: int,
@@ -67,6 +68,7 @@ class VisualTransformer(nn.Module):
         act_layer: Callable = nn.GELU,
     ):
         super().__init__()
+        self.batch_size = batch_size
         self.image_size = to_2tuple(image_size)
         self.patch_size = to_2tuple(patch_size)
         self.grid_size = (
@@ -136,6 +138,7 @@ class CLIPVisionTransformer(nn.Module):
         embed_dim: int,
         vision_cfg: CLIPVisionCfg,
         quick_gelu: bool = False,
+        batch_size: int = 1,
     ):
         super().__init__()
         if isinstance(vision_cfg, dict):
@@ -147,6 +150,7 @@ class CLIPVisionTransformer(nn.Module):
         # layers name: visual....
         vision_heads = vision_cfg.width // vision_cfg.head_width
         self.visual = VisualTransformer(
+            batch_size=batch_size,
             image_size=vision_cfg.image_size,
             patch_size=vision_cfg.patch_size,
             width=vision_cfg.width,
@@ -170,6 +174,7 @@ class CLIPTextTransformer(nn.Module):
         embed_dim: int,
         text_cfg: CLIPTextCfg,
         quick_gelu: bool = False,
+        batch_size: int = 1,
     ):
         super().__init__()
         if isinstance(text_cfg, dict):

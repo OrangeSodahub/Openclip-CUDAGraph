@@ -11,6 +11,18 @@ def cuda_graphs_wrapper(
 ):
     assert isinstance(inputs, (list, tuple)), f"inputs is of type {type(inputs)} instead of list"
     static_inputs = [torch.zeros_like(x, device='cuda') for x in inputs]
+    # required warmup, not just for perf but for correctness
+    torch.cuda.synchronize()
+    stream = torch.cuda.Stream()
+    stream.wait_stream(torch.cuda.current_stream())
+    with torch.cuda.stream(stream):
+        # 2 rounds, 1 to build the model (triton kernels, casting, etc.),
+        # and 1 for warmup
+        for _ in range(2):
+            model(*inputs)
+    stream.synchronize()
+    torch.cuda.current_stream().wait_stream(stream)
+    torch.cuda.synchronize()
 
     # record
     stream = torch.cuda.Stream()

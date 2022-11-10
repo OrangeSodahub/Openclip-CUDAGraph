@@ -79,10 +79,10 @@ class OPT_CLIPVisionTransformer(ORG_CLIPVisionTransformer):
 
 
 class OPT_CLIPModel():
-    def __init__(self, name: str, device: str = 'cpu', jit: bool = False,
+    def __init__(self, name: str, device: str = 'cpu', jit: bool = False, batch_size: int = 1,
                  example_inputs_text = None, example_inputs_image = None, **kwargs):
 
-        self._model = CLIPModel(name, device, jit)
+        self._model = CLIPModel(name, device, jit, batch_size)
         if example_inputs_text is None and example_inputs_image is None:
             self._encode_text = optimize_model_dynamo(original_model=self._model._model_text)
             self._encode_image = optimize_model_dynamo(original_model=self._model._model_vision)

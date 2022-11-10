@@ -10,7 +10,7 @@ from optimized_model import (ORG_CLIPTextTransformer, OPT_CLIPTextTransformer,
 from clip_server.model.openclip_model import OpenCLIPModel
 
 
-def benchmark(use_dynamo, pt, N, B):
+def benchmark(use_dynamo = False, pt = True, N = 1, B = 1):
     logging.getLogger().setLevel(logging.INFO)
     np.random.seed(0)
     torch.manual_seed(4896)
@@ -39,6 +39,7 @@ def benchmark(use_dynamo, pt, N, B):
     input = torch.randint(0, 10, (B, 77)).long().cuda()
     # inputs_image = torch.randint(0, 10, (N, B, 3, 224, 224)).half().cuda()
     with torch.inference_mode(), torch.cuda.amp.autocast(enabled=True, dtype=torch.float16, cache_enabled=True):
+        # warm up
         for _ in range(N):
 
             if pt:
@@ -52,6 +53,16 @@ def benchmark(use_dynamo, pt, N, B):
             start = time.perf_counter()
             _2 = opt_model.encode_text(input)
             torch.cuda.synchronize()
+            complete_time_optimized += time.perf_counter() - start
+        
+        # benchmark
+        for _ in range(N):
+
+            if pt:
+                torch.cuda.synchronize()
+                start = time.perf_counter()
+                _1 = org_model.encode_text(input)
+                torch.cuda.synchronize()
             complete_time_optimized += time.perf_counter() - start
     
     print(f"{complete_time_baseline=:.5f}s")
@@ -75,23 +86,18 @@ if __name__ == "__main__":
     complete_time_baseline = []
     complete_time_optimized = []
     speed_up = []
-    # warm up
-    for _ in range(2):
-        _, _ = benchmark(True, True, 1, 1)
     # benchmark
-    for N in [1, 100, 1000, 5000, 10000]:
+    for N in [100]:
         for B in [1, 2, 4, 8, 16]:
             print(f"Runing on N={N}, B={B}")
-            complete_time_baseline_, complete_time_optimized_ = benchmark(True, True, N, B)
+            complete_time_baseline_, complete_time_optimized_ = benchmark(False, False, N, B)
             complete_time_baseline.append(complete_time_baseline_)
             complete_time_optimized.append(complete_time_optimized_)
             speed_up_ = complete_time_baseline_/complete_time_optimized_
             speed_up.append(speed_up_)
             print(f"Speed up:{speed_up_}\n")
+            import time
+            time.sleep(10)
     print(complete_time_baseline)
     print(complete_time_optimized)
     print(speed_up)
-
-    np.savetxt('./assets/baseline.text', complete_time_baseline)
-    np.savetxt('./assets/optimized.text', complete_time_optimized)
-    np.savetxt('./assets/speed_up.text', speed_up)
