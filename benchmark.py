@@ -17,7 +17,7 @@ def benchmark(use_dynamo = False, pt = True, N = 1, B = 1, mode = 'text'):
 
     # Load Model: mock input
     name='ViT-L-14::laion2b-s32b-b82k'
-    example_input = None
+    example_inputs = None
     if not use_dynamo:
         if mode == 'text':
             example_inputs = torch.randint(0, 10, (B, 77)).long().cuda()
@@ -27,7 +27,7 @@ def benchmark(use_dynamo = False, pt = True, N = 1, B = 1, mode = 'text'):
         name=name,
         device='cuda',
         batch_size=B,
-        example_inputs_text=example_inputs     # `None` if use dynamo
+        example_inputs=example_inputs     # `None` if use dynamo
     )
     if pt:
         org_model = OpenCLIPModel(name=name, device='cuda')
