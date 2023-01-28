@@ -9,15 +9,9 @@ And also not use `torchdynamo.optimize()`.
 
 Tested Model (on RTX3080): `ViT-L-14::laion2b-s32b-b82k`
 
-Using dynamo:
-
-<p float="left">
-    <img src=./assets/1.png width=60%>
-</p>
-
 Using symbolic_trace: we need to specify whethter TextModel or VisionModel, if not it generate both example inputs and build graphs and causes a large GPU memory occupancxy.
 
-**graph**: `[torch dynamo]/[symbolic trace]` for torch dynamo's time, it includes building graphs and inference while for symbolic trace, building graph's cost is not been counted. It saves the time cost on starting the model multiply times. When N gets larger and batch_size gets smaller, it performs better.
+**graph**: `[torch dynamo]/[symbolic trace]` for torch dynamo's time, it includes building graphs and inference while for symbolic trace, building graph's cost is not been counted. It saves the time cost on starting the model multiply times.
 
 **GPU**: `[pytorch]/[torch dynamo]/[symbolic trace]`
 
