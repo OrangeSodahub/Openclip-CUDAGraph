@@ -36,15 +36,24 @@ def benchmark(use_dynamo = False, pt = True, N = 1, B = 1, mode = 'text'):
     complete_time_baseline = 0
     complete_time_optimized = 0
     
-    input = torch.randint(0, 10, (B, 77)).long().cuda()
-    # inputs = torch.randint(0, 10, (N, B, 3, 224, 224)).half().cuda()
+    if mode == 'text':
+        input = torch.randint(0, 10, (B, 77)).long().cuda()
+    elif mode == 'image':
+        input = torch.randint(0, 10, (B, 3, 224, 224)).half().cuda()
     with torch.inference_mode(), torch.cuda.amp.autocast(enabled=True, dtype=torch.float16, cache_enabled=True):
+        # set up encode fn
+        if mode == 'text':
+            org_encode = org_model.encode_text if pt else None
+            opt_encode = opt_model.encode_text
+        elif mode == 'image':
+            org_encode = org_model.encode_image if pt else None
+            opt_encode = opt_model.encode_image
+        
         # warm up
         for _ in range(5):
 
-            if pt:
-                _1 = org_model.encode_text(input)
-            _2 = opt_model.encode_text(input)
+            _1 = org_encode(input) if pt else None
+            _2 = opt_encode(input)
         
         # benchmark
         for _ in range(N):
@@ -52,13 +61,13 @@ def benchmark(use_dynamo = False, pt = True, N = 1, B = 1, mode = 'text'):
             if pt:
                 torch.cuda.synchronize()
                 start = time.perf_counter()
-                _1 = org_model.encode_text(input)
+                _1 = org_encode(input)
                 torch.cuda.synchronize()
                 complete_time_baseline += time.perf_counter() - start
 
             torch.cuda.synchronize()
             start = time.perf_counter()
-            _2 = opt_model.encode_text(input)
+            _2 = opt_encode(input)
             torch.cuda.synchronize()
             complete_time_optimized += time.perf_counter() - start
     
@@ -79,10 +88,10 @@ if __name__ == "__main__":
     mean_diff = []
     speed_up = []
     # benchmark
-    for N in [1, 100, 1000, 10000]:
+    for N in [10]:
         for B in [1, 2, 4, 8, 16]:
             print(f"Runing on N={N}, B={B}")
-            complete_time_baseline_, complete_time_optimized_, mean_diff_ = benchmark(True, True, N, B, 'text')
+            complete_time_baseline_, complete_time_optimized_, mean_diff_ = benchmark(True, False, N, B, 'image')
             complete_time_baseline.append(complete_time_baseline_)
             complete_time_optimized.append(complete_time_optimized_)
             mean_diff.append(mean_diff_)
